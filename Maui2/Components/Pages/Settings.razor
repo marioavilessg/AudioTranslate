@@ -1,0 +1,45 @@
+﻿@page "/"
+@using Maui2.Models
+@using Maui2.Services
+@inject ConfigurationService Config
+@inject RabbitMqService Rabbit
+
+<h3>Configuración RabbitMQ</h3>
+
+<input placeholder="Host" @bind="RabbitConfig.Host" />
+<input placeholder="Usuario" @bind="RabbitConfig.Username" />
+<input type="password" placeholder="Password" @bind="RabbitConfig.Password" />
+<input placeholder="Mi Cola" @bind="RabbitConfig.MyQueue" />
+<input placeholder="Cola Destino" @bind="RabbitConfig.TargetQueue" />
+
+<button @onclick="Save">Guardar y Reconectar</button>
+
+@if (!Rabbit.IsConnected)
+{
+    <p style="color:red">Error: @Rabbit.ConnectionError</p>
+}
+else
+{
+    <p style="color:green">Conectado correctamente</p>
+}
+
+@code {
+
+    RabbitSettings RabbitConfig = new();
+
+    protected override void OnInitialized()
+    {
+        RabbitConfig = Config.CurrentSettings;
+
+        Rabbit.OnConnectionStateChanged += () =>
+        {
+            InvokeAsync(StateHasChanged);
+        };
+    }
+
+    void Save()
+    {
+        Config.UpdateSettings(RabbitConfig);
+        Rabbit.ConnectAsync();
+    }
+}
