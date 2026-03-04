@@ -16,6 +16,7 @@ public class RabbitMqService
     public string? ConnectionError { get; private set; }
 
     public event Action? OnConnectionStateChanged;
+    public event Action<ChatMessage>? OnMessageReceived;
 
     public RabbitMqService(ConfigurationService configService)
     {
@@ -59,6 +60,27 @@ public class RabbitMqService
 
                 _channel.QueueDeclare(settings.MyQueue, false, false, false);
                 _channel.QueueDeclare(settings.TargetQueue, false, false, false);
+                var consumer = new RabbitMQ.Client.Events.EventingBasicConsumer(_channel);
+
+                consumer.Received += (model, ea) =>
+                {
+                    var body = ea.Body.ToArray();
+
+                    var json = Encoding.UTF8.GetString(body);
+
+                    var message = System.Text.Json.JsonSerializer.Deserialize<ChatMessage>(json);
+
+                    if (message != null)
+                    {
+                        OnMessageReceived?.Invoke(message);
+                    }
+                };
+
+                _channel.BasicConsume(
+                    queue: settings.MyQueue,
+                    autoAck: true,
+                    consumer: consumer
+                );
             });
 
             IsConnected = true;
@@ -87,5 +109,21 @@ public class RabbitMqService
         _channel = null;
         _connection = null;
         IsConnected = false;
+    }
+    
+    public void SendMessage(ChatMessage message)
+    {
+        if (!IsConnected || _channel == null) return;
+
+        var json = System.Text.Json.JsonSerializer.Serialize(message);
+
+        var body = Encoding.UTF8.GetBytes(json);
+
+        _channel.BasicPublish(
+            exchange: "",
+            routingKey: _configService.CurrentSettings.TargetQueue,
+            basicProperties: null,
+            body: body
+        );
     }
 }

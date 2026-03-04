@@ -1,0 +1,135 @@
+﻿@page "/"
+
+@using Maui1.Models
+@using Maui1.Services
+@inject RabbitMqService Rabbit
+
+<h1>Chat</h1>
+
+<label>Idioma:</label>
+
+<select @bind="MyLanguage">
+    @foreach (var lang in Languages)
+    {
+        <option value="@lang.Code">@lang.Name</option>
+    }
+</select>
+
+<br /><br />
+
+<input @bind="CurrentText" placeholder="Escribe mensaje..." />
+
+<button @onclick="SendMessage">Enviar</button>
+
+<hr />
+
+<div class="chat-container">
+
+@foreach (var msg in Messages)
+{
+    bool isMine = msg.SenderId == MyId;
+
+    <div class="message @(isMine ? "mine" : "theirs")">
+        <div class="bubble">
+            <div>@msg.OriginalText</div>
+            <div class="time">@msg.Timestamp.ToShortTimeString()</div>
+        </div>
+    </div>
+}
+
+</div>
+
+@code {
+
+    string CurrentText = "";
+
+    string MyId = "AppA";
+
+    List<ChatMessage> Messages = new();
+
+    protected override void OnInitialized()
+    {
+        Rabbit.OnMessageReceived += (msg) =>
+        {
+            InvokeAsync(() =>
+            {
+                Messages.Add(msg);
+                StateHasChanged();
+            });
+        };
+    }
+
+    List<LanguageOption> Languages = new()
+    {
+        new() { Code = "es", Name = "Español" },
+        new() { Code = "en", Name = "English" },
+        new() { Code = "fr", Name = "Français" },
+        new() { Code = "de", Name = "Deutsch" }
+    };
+
+    string MyLanguage = "es";
+
+    void SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(CurrentText))
+            return;
+
+        var message = new ChatMessage
+        {
+            SenderId = MyId,
+            OriginalText = CurrentText,
+            SourceLanguage = MyLanguage,
+            Timestamp = DateTime.Now
+        };
+
+        Rabbit.SendMessage(message);
+
+        Messages.Add(message);
+
+        CurrentText = "";
+    }
+
+}
+
+<style>
+
+.chat-container{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.message{
+    display:flex;
+}
+
+.message.mine{
+    justify-content:flex-end;
+}
+
+.message.theirs{
+    justify-content:flex-start;
+}
+
+.bubble{
+    padding:10px 15px;
+    border-radius:15px;
+    max-width:60%;
+}
+
+.mine .bubble{
+    background:#0078d4;
+    color:white;
+}
+
+.theirs .bubble{
+    background:#e5e5ea;
+}
+
+.time{
+    font-size:10px;
+    opacity:0.7;
+    margin-top:3px;
+}
+
+</style>
