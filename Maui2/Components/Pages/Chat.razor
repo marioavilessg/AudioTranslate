@@ -4,6 +4,7 @@
 @using Maui2.Services
 @inject RabbitMqService Rabbit
 @inject TranslatorService Translator
+@inject SpeechService Speech
 
 <h1>Chat</h1>
 
@@ -20,6 +21,7 @@
 
 <input @bind="CurrentText" placeholder="Escribe mensaje..." />
 <button @onclick="SendMessage">Enviar</button>
+<button @onclick="RecordAudio">🎤 Hablar</button>
 
 <hr />
 
@@ -60,8 +62,6 @@
 
             if (msg.SourceLanguage != MyLanguage)
             {
-                Console.WriteLine("LLAMANDO A AZURE TRANSLATOR");
-
                 text = await Translator.TranslateAsync(
                     msg.OriginalText,
                     msg.SourceLanguage,
@@ -76,10 +76,43 @@
                 Messages.Add(msg);
                 StateHasChanged();
             });
+
+            if (msg.IsAudio)
+            {
+                await Speech.SpeakAsync(text, MyLanguage);
+            }
         }
         catch (Exception ex)
         {
             Console.WriteLine("ERROR TRADUCCION: " + ex.Message);
+        }
+    }
+    
+    async Task RecordAudio()
+    {
+        try
+        {
+            var speechText = await Speech.SpeechToTextAsync(MyLanguage);
+
+            if (string.IsNullOrWhiteSpace(speechText))
+                return;
+
+            var message = new ChatMessage
+            {
+                SenderId = MyId,
+                OriginalText = speechText,
+                SourceLanguage = MyLanguage,
+                Timestamp = DateTime.Now,
+                IsAudio = true
+            };
+
+            Rabbit.SendMessage(message);
+
+            Messages.Add(message);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("ERROR MICRO: " + ex.Message);
         }
     }
 
@@ -94,23 +127,24 @@
     string MyLanguage = "es";
 
     void SendMessage()
+{
+    if (string.IsNullOrWhiteSpace(CurrentText))
+        return;
+
+    var message = new ChatMessage
     {
-        if (string.IsNullOrWhiteSpace(CurrentText))
-            return;
+        SenderId = MyId,
+        OriginalText = CurrentText,
+        SourceLanguage = MyLanguage,
+        Timestamp = DateTime.Now,
+        IsAudio = false
+    };
 
-        var message = new ChatMessage
-        {
-            SenderId = MyId,
-            OriginalText = CurrentText,
-            SourceLanguage = MyLanguage,
-            Timestamp = DateTime.Now
-        };
+    Rabbit.SendMessage(message);
 
-        Rabbit.SendMessage(message);
+    Messages.Add(message);
 
-        Messages.Add(message);
-
-        CurrentText = "";
-    }
+    CurrentText = "";
+}
 
 }

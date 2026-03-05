@@ -41,6 +41,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ConfigurationService>();
         builder.Services.AddSingleton<RabbitMqService>();
         builder.Services.AddSingleton<TranslatorService>();
+        builder.Services.AddSingleton <SpeechService>();
 
         return builder.Build();
     }

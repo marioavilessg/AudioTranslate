@@ -9,4 +9,6 @@ public class ChatMessage
     public string SourceLanguage { get; set; }
 
     public DateTime Timestamp { get; set; }
+    
+    public bool IsAudio { get; set; }
 }
