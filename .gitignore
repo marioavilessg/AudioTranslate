@@ -22,3 +22,7 @@ Thumbs.db
 *.aab
 *.app
 *.ipa
+
+# App settings (claves y configuración sensible)
+Maui1/appsettings.json
+Maui2/appsettings.json

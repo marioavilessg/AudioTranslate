@@ -3,6 +3,7 @@
 @using Maui2.Models
 @using Maui2.Services
 @inject RabbitMqService Rabbit
+@inject TranslatorService Translator
 
 <h1>Chat</h1>
 
@@ -18,7 +19,6 @@
 <br /><br />
 
 <input @bind="CurrentText" placeholder="Escribe mensaje..." />
-
 <button @onclick="SendMessage">Enviar</button>
 
 <hr />
@@ -43,20 +43,44 @@
 
     string CurrentText = "";
 
-    string MyId = "AppB"; 
+    string MyId = "AppB";
 
     List<ChatMessage> Messages = new();
 
     protected override void OnInitialized()
     {
-        Rabbit.OnMessageReceived += (msg) =>
+        Rabbit.OnMessageReceived += HandleIncomingMessage;
+    }
+
+    async void HandleIncomingMessage(ChatMessage msg)
+    {
+        try
         {
-            InvokeAsync(() =>
+            var text = msg.OriginalText;
+
+            if (msg.SourceLanguage != MyLanguage)
+            {
+                Console.WriteLine("LLAMANDO A AZURE TRANSLATOR");
+
+                text = await Translator.TranslateAsync(
+                    msg.OriginalText,
+                    msg.SourceLanguage,
+                    MyLanguage
+                );
+            }
+
+            msg.OriginalText = text;
+
+            await InvokeAsync(() =>
             {
                 Messages.Add(msg);
                 StateHasChanged();
             });
-        };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("ERROR TRADUCCION: " + ex.Message);
+        }
     }
 
     List<LanguageOption> Languages = new()
@@ -90,46 +114,3 @@
     }
 
 }
-
-<style>
-
-.chat-container{
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-}
-
-.message{
-    display:flex;
-}
-
-.message.mine{
-    justify-content:flex-end;
-}
-
-.message.theirs{
-    justify-content:flex-start;
-}
-
-.bubble{
-    padding:10px 15px;
-    border-radius:15px;
-    max-width:60%;
-}
-
-.mine .bubble{
-    background:#0078d4;
-    color:white;
-}
-
-.theirs .bubble{
-    background:#e5e5ea;
-}
-
-.time{
-    font-size:10px;
-    opacity:0.7;
-    margin-top:3px;
-}
-
-</style>
