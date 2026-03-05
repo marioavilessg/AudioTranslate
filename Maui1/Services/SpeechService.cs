@@ -14,6 +14,7 @@ public class SpeechService
         _region = config["AzureSpeech:Region"];
     }
 
+    // VOZ → TEXTO
     public async Task<string?> SpeechToTextAsync(string language)
     {
         var speechConfig = SpeechConfig.FromSubscription(_key, _region);
@@ -29,14 +30,25 @@ public class SpeechService
         return null;
     }
 
-    public async Task SpeakAsync(string text, string language)
+    // TEXTO → AUDIO
+    public async Task<(byte[] Audio, int Duration)> TextToSpeechAsync(string text, string language)
     {
         var config = SpeechConfig.FromSubscription(_key, _region);
+
         config.SpeechSynthesisVoiceName = MapVoice(language);
 
-        using var synthesizer = new SpeechSynthesizer(config);
+        using var synthesizer = new SpeechSynthesizer(config, null);
 
-        await synthesizer.SpeakTextAsync(text);
+        var result = await synthesizer.SpeakTextAsync(text);
+
+        if (result.Reason == ResultReason.SynthesizingAudioCompleted)
+        {
+            int durationSeconds = (int)result.AudioDuration.TotalSeconds;
+
+            return (result.AudioData, durationSeconds);
+        }
+
+        return (Array.Empty<byte>(), 0);
     }
 
     private string MapLanguage(string lang)

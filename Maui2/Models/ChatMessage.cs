@@ -12,4 +12,7 @@ public class ChatMessage
     
     public bool IsAudio { get; set; }
 
+    public byte[]? AudioData { get; set; }
+
+    public int AudioDuration { get; set; }
 }

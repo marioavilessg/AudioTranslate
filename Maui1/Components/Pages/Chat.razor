@@ -2,6 +2,7 @@
 
 @using Maui1.Models
 @using Maui1.Services
+@using Plugin.Maui.Audio
 @inject RabbitMqService Rabbit
 @inject TranslatorService Translator
 @inject SpeechService Speech
@@ -21,23 +22,36 @@
 
 <input @bind="CurrentText" placeholder="Escribe mensaje..." />
 <button @onclick="SendMessage">Enviar</button>
-<button @onclick="RecordAudio">🎤 Hablar</button>
+<button @onclick="RecordAudio" disabled="@IsListening">
+    @(IsListening ? "🎤 Escuchando..." : "🎤 Hablar")
+</button>
 
 <hr />
 
 <div class="chat-container">
 
-@foreach (var msg in Messages)
-{
-    bool isMine = msg.SenderId == MyId;
+    @foreach (var msg in Messages)
+    {
+        bool isMine = msg.SenderId == MyId;
 
-    <div class="message @(isMine ? "mine" : "theirs")">
-        <div class="bubble">
-            <div>@msg.OriginalText</div>
-            <div class="time">@msg.Timestamp.ToShortTimeString()</div>
+        <div class="message @(isMine ? "mine" : "theirs")">
+
+            @if (msg.IsAudio)
+            {
+                <div class="audio-bubble" @onclick="() => PlayAudio(msg)">
+                    ▶ Audio (@msg.AudioDuration s)
+                </div>
+            }
+            else
+            {
+                <div class="bubble">
+                    <div>@msg.OriginalText</div>
+                    <div class="time">@msg.Timestamp.ToShortTimeString()</div>
+                </div>
+            }
+
         </div>
-    </div>
-}
+    }
 
 </div>
 
@@ -46,6 +60,8 @@
     string CurrentText = "";
 
     string MyId = "AppA";
+    
+    bool IsListening = false;
 
     List<ChatMessage> Messages = new();
 
@@ -71,20 +87,23 @@
 
             msg.OriginalText = text;
 
+            if (msg.IsAudio)
+            {
+                var audioResult = await Speech.TextToSpeechAsync(text, MyLanguage);
+
+                msg.AudioData = audioResult.Audio;
+                msg.AudioDuration = audioResult.Duration;
+            }
+
             await InvokeAsync(() =>
             {
                 Messages.Add(msg);
                 StateHasChanged();
             });
-
-            if (msg.IsAudio)
-            {
-                await Speech.SpeakAsync(text, MyLanguage);
-            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine("ERROR TRADUCCION: " + ex.Message);
+            Console.WriteLine(ex.Message);
         }
     }
     
@@ -92,7 +111,11 @@
     {
         try
         {
+            IsListening = true;
+
             var speechText = await Speech.SpeechToTextAsync(MyLanguage);
+
+            IsListening = false;
 
             if (string.IsNullOrWhiteSpace(speechText))
                 return;
@@ -106,13 +129,18 @@
                 IsAudio = true
             };
 
+            var audioResult = await Speech.TextToSpeechAsync(speechText, MyLanguage);
+
+            message.AudioData = audioResult.Audio;
+            message.AudioDuration = audioResult.Duration;
+
             Rabbit.SendMessage(message);
 
             Messages.Add(message);
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine("ERROR MICRO: " + ex.Message);
+            IsListening = false;
         }
     }
 
@@ -127,24 +155,35 @@
     string MyLanguage = "es";
 
     void SendMessage()
-{
-    if (string.IsNullOrWhiteSpace(CurrentText))
-        return;
-
-    var message = new ChatMessage
     {
-        SenderId = MyId,
-        OriginalText = CurrentText,
-        SourceLanguage = MyLanguage,
-        Timestamp = DateTime.Now,
-        IsAudio = false
-    };
+        if (string.IsNullOrWhiteSpace(CurrentText))
+            return;
 
-    Rabbit.SendMessage(message);
+        var message = new ChatMessage
+        {
+            SenderId = MyId,
+            OriginalText = CurrentText,
+            SourceLanguage = MyLanguage,
+            Timestamp = DateTime.Now,
+            IsAudio = false
+        };
 
-    Messages.Add(message);
+        Rabbit.SendMessage(message);
 
-    CurrentText = "";
-}
+        Messages.Add(message);
+
+        CurrentText = "";
+    }
+    async Task PlayAudio(ChatMessage msg)
+    {
+        if (msg.AudioData == null)
+            return;
+
+        var stream = new MemoryStream(msg.AudioData);
+
+        var player = AudioManager.Current.CreatePlayer(stream);
+
+        player.Play();
+    }
 
 }

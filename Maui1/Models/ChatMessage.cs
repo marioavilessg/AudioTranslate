@@ -11,4 +11,8 @@ public class ChatMessage
     public DateTime Timestamp { get; set; }
     
     public bool IsAudio { get; set; }
+
+    public byte[]? AudioData { get; set; }
+
+    public int AudioDuration { get; set; }
 }
