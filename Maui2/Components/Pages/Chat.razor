@@ -7,67 +7,135 @@
 @inject TranslatorService Translator
 @inject SpeechService Speech
 
-<h1>Chat</h1>
+<!-- Header -->
+<header class="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm">
+    <div class="flex items-center justify-between h-14 px-4">
+        <div class="flex items-center gap-2">
+            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-sm font-semibold text-slate-800 leading-tight">AudioTranslate</h1>
+                <p class="text-xs text-slate-400 leading-tight">Maui2</p>
+            </div>
+        </div>
 
-<label>Idioma:</label>
+        <!-- Language selector -->
+        <div class="relative">
+            <select @bind="MyLanguage"
+                    class="appearance-none bg-primary-50 text-primary-700 text-xs font-semibold pl-3 pr-7 py-1.5 rounded-full border border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer">
+                @foreach (var lang in Languages)
+                {
+                    <option value="@lang.Code">@lang.Name</option>
+                }
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                <svg class="w-3 h-3 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+</header>
 
-<select @bind="MyLanguage">
-    @foreach (var lang in Languages)
+<!-- Messages area -->
+<div class="flex-1 overflow-y-auto px-4 py-4 space-y-3" id="chat-scroll">
+
+    @if (!Messages.Any())
     {
-        <option value="@lang.Code">@lang.Name</option>
+        <div class="flex flex-col items-center justify-center h-full text-center py-16">
+            <div class="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+            </div>
+            <p class="text-slate-400 text-sm font-medium">No hay mensajes aún</p>
+            <p class="text-slate-300 text-xs mt-1">Escribe o habla para comenzar</p>
+        </div>
     }
-</select>
-
-<br /><br />
-
-<input @bind="CurrentText" placeholder="Escribe mensaje..." />
-<button @onclick="SendMessage">Enviar</button>
-<button @onclick="RecordAudio" disabled="@IsListening">
-    @(IsListening ? "🎤 Escuchando..." : "🎤 Hablar")
-</button>
-
-<hr />
-
-<div class="chat-container">
 
     @foreach (var msg in Messages)
     {
         bool isMine = msg.SenderId == MyId;
 
-        <div class="message @(isMine ? "mine" : "theirs")">
-
+        <div class="flex @(isMine ? "justify-end" : "justify-start")">
             @if (msg.IsAudio)
             {
-                <div class="audio-bubble" @onclick="() => PlayAudio(msg)">
-                    ▶ Audio (@msg.AudioDuration s)
+                <div class="@(isMine ? "bg-primary-600 text-white" : "bg-white text-slate-700 border border-slate-200") rounded-2xl @(isMine ? "rounded-br-sm" : "rounded-bl-sm") px-4 py-3 max-w-xs shadow-sm cursor-pointer active:scale-95 transition-transform"
+                     @onclick="() => PlayAudio(msg)">
+                    <div class="flex items-center gap-2">
+                        <div class="@(isMine ? "bg-white/20" : "bg-primary-100") rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 @(isMine ? "text-white" : "text-primary-600")" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <span class="text-sm font-medium">Audio</span>
+                            <span class="text-xs @(isMine ? "text-white/60" : "text-slate-400")">@msg.AudioDuration s</span>
+                        </div>
+                    </div>
+                    <div class="text-right mt-1">
+                        <span class="text-xs @(isMine ? "text-white/50" : "text-slate-300")">@msg.Timestamp.ToShortTimeString()</span>
+                    </div>
                 </div>
             }
             else
             {
-                <div class="bubble">
-                    <div>@msg.OriginalText</div>
-                    <div class="time">@msg.Timestamp.ToShortTimeString()</div>
+                <div class="@(isMine ? "bg-primary-600 text-white" : "bg-white text-slate-800 border border-slate-100") rounded-2xl @(isMine ? "rounded-br-sm" : "rounded-bl-sm") px-4 py-2.5 max-w-xs shadow-sm">
+                    <p class="text-sm leading-relaxed">@msg.OriginalText</p>
+                    <p class="text-right text-xs mt-1 @(isMine ? "text-white/50" : "text-slate-300")">@msg.Timestamp.ToShortTimeString()</p>
                 </div>
             }
-
         </div>
     }
+</div>
 
+<!-- Input bar -->
+<div class="flex-shrink-0 bg-white border-t border-slate-200 px-3 py-2.5">
+    <div class="flex items-center gap-2">
+        <div class="flex-1 flex items-center bg-slate-100 rounded-full px-4 py-2.5 border border-slate-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100 transition-all">
+            <input @bind="CurrentText"
+                   @bind:event="oninput"
+                   @onkeypress="HandleKeyPress"
+                   placeholder="Escribe un mensaje..."
+                   class="flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 focus:outline-none" />
+        </div>
+
+        <button @onclick="RecordAudio"
+                disabled="@IsListening"
+                class="@(IsListening ? "bg-red-500 animate-pulse" : "bg-slate-200 hover:bg-primary-100") w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 @(IsListening ? "text-white" : "text-slate-500")" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+        </button>
+
+        <button @onclick="SendMessage"
+                class="w-10 h-10 rounded-full bg-primary-600 hover:bg-primary-700 active:scale-90 flex items-center justify-center shadow-md transition-all duration-200 flex-shrink-0 disabled:opacity-40"
+                disabled="@(string.IsNullOrWhiteSpace(CurrentText))">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+        </button>
+    </div>
 </div>
 
 @code {
 
     string CurrentText = "";
-
     string MyId = "AppB";
-    
     bool IsListening = false;
-
     List<ChatMessage> Messages = new();
 
     protected override void OnInitialized()
     {
         Rabbit.OnMessageReceived += HandleIncomingMessage;
+    }
+
+    void HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") SendMessage();
     }
 
     async void HandleIncomingMessage(ChatMessage msg)
@@ -90,7 +158,6 @@
             if (msg.IsAudio)
             {
                 var audioResult = await Speech.TextToSpeechAsync(text, MyLanguage);
-
                 msg.AudioData = audioResult.Audio;
                 msg.AudioDuration = audioResult.Duration;
             }
@@ -106,19 +173,23 @@
             Console.WriteLine(ex.Message);
         }
     }
-    
+
     async Task RecordAudio()
     {
         try
         {
             IsListening = true;
+            StateHasChanged();
 
             var speechText = await Speech.SpeechToTextAsync(MyLanguage);
 
             IsListening = false;
 
             if (string.IsNullOrWhiteSpace(speechText))
+            {
+                StateHasChanged();
                 return;
+            }
 
             var message = new ChatMessage
             {
@@ -130,17 +201,17 @@
             };
 
             var audioResult = await Speech.TextToSpeechAsync(speechText, MyLanguage);
-
             message.AudioData = audioResult.Audio;
             message.AudioDuration = audioResult.Duration;
 
             Rabbit.SendMessage(message);
-
             Messages.Add(message);
+            StateHasChanged();
         }
         catch
         {
             IsListening = false;
+            StateHasChanged();
         }
     }
 
@@ -169,21 +240,17 @@
         };
 
         Rabbit.SendMessage(message);
-
         Messages.Add(message);
-
         CurrentText = "";
     }
+
     async Task PlayAudio(ChatMessage msg)
     {
         if (msg.AudioData == null)
             return;
 
         var stream = new MemoryStream(msg.AudioData);
-
         var player = AudioManager.Current.CreatePlayer(stream);
-
         player.Play();
     }
-
 }
